@@ -1,0 +1,27 @@
+# Sample unit for the desk touchscreen, for Raspberry Pi OS Lite (no desktop running).
+# pygame draws straight to the display, so no window manager is needed.
+#
+# Deliberately not bound to studyspace-node.service: either can crash or restart
+# without taking the other down. The screen shows "Not available" and reconnects.
+
+[Unit]
+Description=Study-space desk touchscreen
+After=studyspace-node.service
+
+[Service]
+Type=simple
+User=studyspace-gui
+# "studyspace" gives access to the node's UI socket; the rest to the display and touch.
+SupplementaryGroups=studyspace video render input
+Environment=SDL_VIDEODRIVER=kmsdrm
+ExecStart=/opt/studyspace-node/.venv/bin/python -m studyspace_node.gui --socket /run/studyspace-node/ui.sock
+Restart=always
+RestartSec=3
+
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

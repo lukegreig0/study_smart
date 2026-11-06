@@ -1,0 +1,86 @@
+# Example configuration for studyspace-node: the prototype layout, with one node
+# and touchscreen in the middle of a desk and three chairs with load cells.
+# Copy to config.toml and edit.
+
+[node]
+id = "node-07"             # unique per Raspberry Pi
+desk_id = "desk-07"
+building = "library"
+room = "floor2"
+
+# One [[seats]] entry per seat. Each needs at least one sensor table, and can combine
+# any of [seats.weight], [seats.motion] and [seats.distance]. All pins are BCM GPIO numbers.
+[[seats]]
+space_id = "desk-07-a"     # unique across the whole site: it is the MQTT topic
+label = "A"                # shown on the touchscreen
+position_deg = 0           # optional: clockwise from the top of the on-screen diagram
+[seats.weight]
+data_pin = 5
+clock_pin = 6
+# Placeholders. Get real values for each chair with:
+#   studyspace-calibrate --config config.toml --seat desk-07-a --known-kg 10
+tare_offset = 0.0
+scale_per_kg = 21000.0
+
+[[seats]]
+space_id = "desk-07-b"
+label = "B"
+position_deg = 120
+[seats.weight]
+data_pin = 13
+clock_pin = 19
+tare_offset = 0.0
+scale_per_kg = 21000.0
+
+[[seats]]
+space_id = "desk-07-c"
+label = "C"
+position_deg = 240
+[seats.weight]
+data_pin = 20
+clock_pin = 21
+tare_offset = 0.0
+scale_per_kg = 21000.0
+
+# A seat using the PIR and ultrasonic sensors instead would look like:
+#   [[seats]]
+#   space_id = "desk-08"
+#   [seats.motion]
+#   pin = 17
+#   [seats.distance]
+#   trigger_pin = 23
+#   echo_pin = 24
+
+[sensors]
+poll_interval_s = 2.0
+
+[occupancy]
+presence_weight_kg = 20.0      # at or above this counts as a person, so bags and books don't
+weight_window = 5
+min_valid_weight_kg = -10.0
+max_valid_weight_kg = 300.0
+confirm_readings = 3
+vacancy_timeout_s = 300
+manual_hold_s = 1800           # how long "mark occupied" holds an empty seat
+max_consecutive_faults = 5
+# Only used by seats with an ultrasonic sensor:
+presence_distance_m = 0.8
+distance_window = 5
+min_valid_distance_m = 0.02
+max_valid_distance_m = 4.0
+
+[ui]
+# Local socket the touchscreen connects to. The default suits the systemd unit;
+# this path suits running by hand as a normal user.
+socket_path = "/tmp/studyspace-node-ui.sock"
+
+[mqtt]
+host = "localhost"
+port = 1883
+topic_prefix = "studyspace"
+tls = false
+heartbeat_s = 60
+# client_id = "node-07"    # defaults to [node] id
+# username = "node-07"
+# Prefer the STUDYSPACE_MQTT_PASSWORD environment variable over this:
+# password = "change-me"

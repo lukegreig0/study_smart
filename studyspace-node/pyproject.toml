@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "studyspace-node"
+version = "0.1.0"
+description = "End-node software for a study-space availability IoT system: seat sensing, a desk touchscreen, and MQTT."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["paho-mqtt>=2"]
+
+[project.optional-dependencies]
+pi = ["gpiozero>=2"]
+gui = ["pygame-ce>=2.5"]
+dev = ["pytest", "pytest-cov"]
+
+[project.scripts]
+studyspace-node = "studyspace_node.__main__:main"
+studyspace-gui = "studyspace_node.gui:main"
+studyspace-calibrate = "studyspace_node.calibrate:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["studyspace_node"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = ["\\.\\.\\.$", "if __name__ == .__main__.:"]

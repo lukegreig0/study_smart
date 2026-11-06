@@ -1,0 +1,33 @@
+# Sample unit for running studyspace-node on boot. See README.md for setup.
+#   sudo cp deploy/studyspace-node.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now studyspace-node
+
+[Unit]
+Description=Study-space availability end node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=studyspace
+Group=studyspace
+SupplementaryGroups=gpio
+ExecStart=/opt/studyspace-node/.venv/bin/python -m studyspace_node --config /etc/studyspace-node/config.toml
+# Optional file holding STUDYSPACE_MQTT_PASSWORD=... (make it mode 600)
+EnvironmentFile=-/etc/studyspace-node/env
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+# lgpio creates notification files in its working directory, which must be writable.
+RuntimeDirectory=studyspace-node
+WorkingDirectory=/run/studyspace-node
+
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
