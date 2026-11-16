@@ -4,6 +4,8 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/node/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/api/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/host/.venv" />
     </content>
     <orderEntry type="jdk" jdkName="~/projects/study_smart/.venv" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
