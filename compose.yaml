@@ -1,0 +1,31 @@
+services:
+  sim:
+    build: ./device_sim
+    image: study-sim
+    network_mode: host
+    restart: unless-stopped
+
+  node:
+    build: ./node
+    image: study-node
+    network_mode: host
+    environment:
+      NODE_ID: node-floor2
+      SITE: library
+      BROKER_HOST: localhost
+      LOG_LEVEL: INFO
+    restart: unless-stopped
+
+  host:
+    build: ./host
+    image: study-host
+    network_mode: host
+    environment:
+      BROKER_HOST: localhost
+      LOG_LEVEL: INFO
+    volumes:
+      - host-data:/data
+    restart: unless-stopped
+
+volumes:
+  host-data:
