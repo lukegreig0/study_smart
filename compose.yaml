@@ -27,5 +27,28 @@ services:
       - host-data:/data
     restart: unless-stopped
 
+  api:
+    build: ./api
+    image: study-api
+    network_mode: host
+    environment:
+      # With host networking, 127.0.0.1 keeps the API reachable only from
+      # this machine. Use 0.0.0.0 to open it to your local network.
+      API_HOST: 127.0.0.1
+      API_PORT: 8000
+      LOG_LEVEL: INFO
+    volumes:
+      # The same volume the host writes. Not mounted :ro, because SQLite
+      # readers in WAL mode still need to write the -shm file; the API opens
+      # the database itself in read-only mode instead.
+      - host-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   host-data:

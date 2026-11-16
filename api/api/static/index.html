@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Space Desks</title>
+<style>
+  /* Colours as variables so dark mode only has to redefine them. */
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e3e6eb;
+    --free: #1f9d55; --free-bg: #e6f6ec;
+    --occupied: #d64545; --occupied-bg: #fbeaea;
+    --unknown: #7a8394; --unknown-bg: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1d2128; --text: #e7eaf0; --muted: #98a1b3; --line: #2c323c;
+      --free: #4cc47f; --free-bg: #173324;
+      --occupied: #f07070; --occupied-bg: #3a1d1f;
+      --unknown: #a1a9b8; --unknown-bg: #262b33;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 28px 0 10px; }
+  .status { color: var(--muted); font-size: 13px; }
+  .status.error { color: var(--occupied); }
+
+  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 28px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .stat.free b { color: var(--free); } .stat.occupied b { color: var(--occupied); } .stat.unknown b { color: var(--unknown); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .desk {
+    background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--unknown);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .desk.free { border-left-color: var(--free); }
+  .desk.occupied { border-left-color: var(--occupied); }
+  .desk .space { font-weight: 600; font-size: 17px; }
+  .desk .device { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .pill {
+    display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; background: var(--unknown-bg); color: var(--unknown);
+  }
+  .free .pill { background: var(--free-bg); color: var(--free); }
+  .occupied .pill { background: var(--occupied-bg); color: var(--occupied); }
+  .desk .since { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  .nodes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .node { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--unknown); }
+  .dot.on { background: var(--free); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.state-free { color: var(--free); } td.state-occupied { color: var(--occupied); } td.state-unknown { color: var(--unknown); }
+  .table-wrap { overflow-x: auto; }
+  .empty { color: var(--muted); padding: 12px 0; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Study space desks</h1>
+    <div id="status" class="status">Loading…</div>
+  </header>
+
+  <section class="summary" aria-label="Summary">
+    <div class="stat free"><b id="count-free">–</b><span>free</span></div>
+    <div class="stat occupied"><b id="count-occupied">–</b><span>occupied</span></div>
+    <div class="stat unknown"><b id="count-unknown">–</b><span>no data</span></div>
+  </section>
+
+  <h2>Seats</h2>
+  <div id="desks" class="grid"></div>
+
+  <h2>Nodes</h2>
+  <div id="nodes" class="nodes"></div>
+
+  <h2>Recent changes</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time</th><th>Seat</th><th>State</th></tr></thead>
+      <tbody id="events"></tbody>
+    </table>
+  </div>
+
+  <footer>Updates every 3 seconds · <a href="/docs">API docs</a></footer>
+</main>
+
+<script>
+// The page only reads the JSON API: every few seconds it fetches the current
+// state and redraws. Polling is simple and plenty for desks that change every
+// few minutes. (Server-push could replace it later without touching the host.)
+
+const POLL_MS = 3000;
+const LABELS = { free: "Free", occupied: "Occupied", unknown: "No data" };
+
+// Build elements with textContent rather than innerHTML, so nothing from the
+// database can ever be interpreted as HTML.
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// Seat number shown on each card, taken from the device id's trailing digits:
+// "placemat-0007" -> "Seat 7". A device id without digits is shown as-is.
+// (Layout only: later, a configuration app could store real seat names.)
+function seatLabel(deviceId) {
+  const m = /(\d+)$/.exec(deviceId);
+  return m ? `Seat ${Number(m[1])}` : deviceId;
+}
+
+function seatNumber(deviceId) {
+  const m = /(\d+)$/.exec(deviceId);
+  return m ? Number(m[1]) : Infinity;
+}
+
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min`;
+  return `${Math.floor(s / 86400)} d`;
+}
+
+function localTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+async function getJSON(path) {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch {}
+    throw new Error(`${res.status}: ${detail}`);
+  }
+  return res.json();
+}
+
+function renderDesks(devices) {
+  const box = document.getElementById("desks");
+  box.replaceChildren();
+  if (!devices.length) { box.append(el("div", "empty", "No seats yet. Waiting for a node birth.")); return; }
+  // Seat order (1, 2, … 10), not alphabetical, and by device id as a tiebreak.
+  const sorted = [...devices].sort((a, b) =>
+    seatNumber(a.device_id) - seatNumber(b.device_id) || a.device_id.localeCompare(b.device_id));
+  for (const d of sorted) {
+    const card = el("div", `desk ${d.state}`);
+    // Device ids (placemat-0007) are back-end details an admin configures, so
+    // the page shows only the seat and its desk.
+    card.append(el("div", "space", seatLabel(d.device_id)),
+                el("div", "device", d.space_id),
+                el("span", "pill", LABELS[d.state] || d.state));
+    if (d.since) {
+      const since = el("div", "since", `for ${ago(d.since)}`);
+      since.title = d.since;
+      card.append(since);
+    }
+    box.append(card);
+  }
+}
+
+function renderNodes(nodes) {
+  const box = document.getElementById("nodes");
+  box.replaceChildren();
+  if (!nodes.length) { box.append(el("div", "empty", "No nodes yet.")); return; }
+  for (const n of nodes) {
+    const chip = el("div", "node");
+    chip.append(el("span", n.online ? "dot on" : "dot"),
+                document.createTextNode(`${n.node_id} · ${n.online ? "online" : "offline"} · ${n.device_count} devices`));
+    chip.title = n.last_seen ? `last seen ${n.last_seen}` : "never seen";
+    box.append(chip);
+  }
+}
+
+function renderEvents(events) {
+  const body = document.getElementById("events");
+  body.replaceChildren();
+  if (!events.length) {
+    const row = el("tr"); const cell = el("td", "empty", "No changes recorded yet.");
+    cell.colSpan = 3; row.append(cell); body.append(row); return;
+  }
+  for (const e of events) {
+    const row = el("tr");
+    const time = el("td", "", localTime(e.changed_at)); time.title = e.changed_at;
+    row.append(time, el("td", "", seatLabel(e.device_id)),
+               el("td", `state-${e.state}`, LABELS[e.state] || e.state));
+    body.append(row);
+  }
+}
+
+async function refresh() {
+  const status = document.getElementById("status");
+  try {
+    const [summary, devices, nodes, events] = await Promise.all([
+      getJSON("/api/summary"), getJSON("/api/devices"), getJSON("/api/nodes"), getJSON("/api/events?limit=15"),
+    ]);
+    for (const k of ["free", "occupied", "unknown"]) document.getElementById(`count-${k}`).textContent = summary[k];
+    renderDesks(devices); renderNodes(nodes); renderEvents(events);
+    status.className = "status";
+    status.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    // Keep showing the last good data; just say what's wrong.
+    status.className = "status error";
+    status.textContent = `Can't reach the API (${err.message}). Retrying…`;
+  } finally {
+    setTimeout(refresh, POLL_MS);
+  }
+}
+
+refresh();
+</script>
+</body>
+</html>
