@@ -13,7 +13,7 @@ DEVICE_3_ID = "placemat-0009"
 DEVICE_IDS = [DEVICE_1_ID, DEVICE_2_ID, DEVICE_3_ID]
 SPACE_ID = "desk-07"
 HEARTBEAT_EVERY = 2  # seconds (short for testing; ~60 in real use)
-RUN_FOR = 40  # seconds before the simulator shuts down
+RUN_FOR = 80  # seconds before the simulator shuts down
 
 
 def now_utc() -> str:
@@ -74,10 +74,18 @@ while time.monotonic() < deadline:
                 heartbeat["occupied"] = False
             if tick == 7:
                 heartbeat["occupied"] = True
+            if tick == 12:
+                heartbeat["occupied"] = False
+            if tick == 13:
+                heartbeat["occupied"] = True
         if device_id == DEVICE_3_ID:
             if tick == 4:
                 heartbeat["occupied"] = True
             if tick == 8:
+                heartbeat["occupied"] = False
+            if tick == 12:
+                heartbeat["occupied"] = True
+            if tick == 16:
                 heartbeat["occupied"] = False
 
 
