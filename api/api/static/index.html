@@ -84,7 +84,7 @@
     <div class="stat unknown"><b id="count-unknown">–</b><span>no data</span></div>
   </section>
 
-  <h2>Desks</h2>
+  <h2>Seats</h2>
   <div id="desks" class="grid"></div>
 
   <h2>Nodes</h2>
@@ -93,7 +93,7 @@
   <h2>Recent changes</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Time</th><th>Desk</th><th>Device</th><th>State</th></tr></thead>
+      <thead><tr><th>Time</th><th>Seat</th><th>State</th></tr></thead>
       <tbody id="events"></tbody>
     </table>
   </div>
@@ -116,6 +116,19 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+// Seat number shown on each card, taken from the device id's trailing digits:
+// "placemat-0007" -> "Seat 7". A device id without digits is shown as-is.
+// (Layout only: later, a configuration app could store real seat names.)
+function seatLabel(deviceId) {
+  const m = /(\d+)$/.exec(deviceId);
+  return m ? `Seat ${Number(m[1])}` : deviceId;
+}
+
+function seatNumber(deviceId) {
+  const m = /(\d+)$/.exec(deviceId);
+  return m ? Number(m[1]) : Infinity;
 }
 
 function ago(iso) {
@@ -144,10 +157,16 @@ async function getJSON(path) {
 function renderDesks(devices) {
   const box = document.getElementById("desks");
   box.replaceChildren();
-  if (!devices.length) { box.append(el("div", "empty", "No desks yet. Waiting for a node birth.")); return; }
-  for (const d of devices) {
+  if (!devices.length) { box.append(el("div", "empty", "No seats yet. Waiting for a node birth.")); return; }
+  // Seat order (1, 2, … 10), not alphabetical, and by device id as a tiebreak.
+  const sorted = [...devices].sort((a, b) =>
+    seatNumber(a.device_id) - seatNumber(b.device_id) || a.device_id.localeCompare(b.device_id));
+  for (const d of sorted) {
     const card = el("div", `desk ${d.state}`);
-    card.append(el("div", "space", d.space_id), el("div", "device", d.device_id),
+    // Device ids (placemat-0007) are back-end details an admin configures, so
+    // the page shows only the seat and its desk.
+    card.append(el("div", "space", seatLabel(d.device_id)),
+                el("div", "device", d.space_id),
                 el("span", "pill", LABELS[d.state] || d.state));
     if (d.since) {
       const since = el("div", "since", `for ${ago(d.since)}`);
@@ -176,12 +195,12 @@ function renderEvents(events) {
   body.replaceChildren();
   if (!events.length) {
     const row = el("tr"); const cell = el("td", "empty", "No changes recorded yet.");
-    cell.colSpan = 4; row.append(cell); body.append(row); return;
+    cell.colSpan = 3; row.append(cell); body.append(row); return;
   }
   for (const e of events) {
     const row = el("tr");
     const time = el("td", "", localTime(e.changed_at)); time.title = e.changed_at;
-    row.append(time, el("td", "", e.space_id), el("td", "", e.device_id),
+    row.append(time, el("td", "", seatLabel(e.device_id)),
                el("td", `state-${e.state}`, LABELS[e.state] || e.state));
     body.append(row);
   }
