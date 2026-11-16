@@ -1,0 +1,71 @@
+# Continuous integration: run every component's tests and check that every
+# Docker image still builds, on each pull request and each push to main.
+#
+# The jobs fan out with a "matrix": one copy of the job per component, all
+# running in parallel, each with its own green tick / red cross on the PR.
+
+name: CI
+
+on:
+  pull_request:          # every PR, and every new commit pushed to it
+  push:
+    branches: [main]     # after a merge, so main's own status is visible
+  workflow_dispatch:     # a "Run workflow" button in the Actions tab
+
+# The workflow only reads the code; it doesn't need to write anything.
+permissions:
+  contents: read
+
+# A newer push to the same branch/PR cancels the run that's still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # Keep testing the other components when one fails, so a single run
+      # shows everything that's broken.
+      fail-fast: false
+      matrix:
+        component: [node, host, api]
+    defaults:
+      run:
+        # Each component is its own project with its own requirements.
+        working-directory: ${{ matrix.component }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          # Same Python as the Docker images (python:3.13-slim).
+          python-version: "3.13"
+          # Reuse downloaded packages between runs; the cache is refreshed
+          # whenever this component's requirements files change.
+          cache: pip
+          cache-dependency-path: ${{ matrix.component }}/requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -v
+
+  docker:
+    name: docker build (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [device_sim, node, host, api]
+    steps:
+      - uses: actions/checkout@v7
+
+      # Only checks that the image builds (Dockerfile, requirements, COPY
+      # paths). Nothing is pushed anywhere.
+      - name: Build image
+        run: docker build -t study-${{ matrix.component }}:ci ./${{ matrix.component }}
